@@ -1,6 +1,7 @@
 import os
 from enum import Enum
-from random import shuffle
+from datetime import datetime
+from random import shuffle, seed
 
 SUIT_ENUM = {}
 
@@ -18,9 +19,10 @@ def RepresentsInt(s):
     except ValueError:
         return False
 
+
 class Card():
     def __init__(self, suit, value):
-        if suit and value: 
+        if suit and value:
             self.suit = suit
             self.set_value(value)
         else:
@@ -57,13 +59,25 @@ class Card():
             if value == "K":
                 self.value = 13
             if value == "A":
-                self.value = 14
-            
+                self.value = 14      
+
+    def get_card_score(self):
+        ret_value = 0
+
+        if self.value <= 10:
+            ret_value = self.value
+        elif self.value == 14:
+            ret_value = 11
+        else:
+            ret_value = 10
+
+        return ret_value
 
 
 class Deck():
     def __init__(self):
         self.cards = []
+        seed(datetime.now())
 
         for i in range(1,5):
             for j in range(2,15):

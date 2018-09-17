@@ -1,45 +1,77 @@
 import sys
 from Player import Player
-from Deck import *
+from Deck import Deck, Card
+from DB import DBInterfacer
+import logging
 
 class Game():
     def __init__(self, players=2, lives=3):
-        self.players = []
-        self.starting_lives = lives
-        for i in range(players):
-            self.players.append(Player(lives=self.starting_lives, name="Player {0}".format(i+1)))
+        logging.basicConfig(filename='crazy.log', level=logging.DEBUG)
+        self.logger = logging.getLogger(__name__)
 
-
-        self.deck = Deck()
-        self.deck.shuffle()
+        self.db = DBInterfacer()
+        self.db.create_table("GameEvents", {"game": "INTEGER", "action": "STRING" ,"round": "INTEGER", "cardname": "STRING", "cardvalue": "INTEGER"})
+        self.db.create_table("GameAudit", {"game": "INTEGER", "numplayers": "INTEGER"})
 
         self.dealer = 0
         self.current_player = 0
 
         self.round = 0
         self.winner = 0  # 1 when game has been won
-        self.game_state = 1 # 1 for dead, 0 for alive
+        self.game_state = 1  # 1 for dead, 0 for alive
+
+        self.starting_lives = lives
+        self.players = []
+
+        for i in range(players):
+            self.players.append(Player(lives=self.starting_lives, name="Player {0}".format(i+1)))
 
         self.played_cards = []
 
-    def start_game(self, hand_size):
-        for player in self.players:
-            player.hand = []
+    def start_new_game(self):
+        self.dealer = 0
+        self.current_player = 0
 
-        self.deal(hand_size)
-        self.dealer = (self.dealer + 1) % len(self.players)
-        self.current_player = self.dealer
-        self.game_state = 0
+        self.round = 0
         self.winner = 0
-        self.round += 1
+
+        # Retrieve the last game's number and increment
+        last_game_number = self.db.retrieve("GameAudit", ["game"], 1)
+        if last_game_number == []:
+            self.game_num = 1
+        else:
+            self.game_num = int(last_game_number[0][0]) + 1
+
+        self.db.insert("GameAudit", {"game": self.game_num, "numplayers": len([player for player in self.players if (player.lives > 0)])})
+
         return True
 
 
+    def start_new_round(self, hand_size):
+        for player in self.players:
+            player.reset_hand()
+
+        self.deck = Deck()
+        self.deck.shuffle()
+
+        self.played_cards = []
+        self.deal(hand_size)
+
+        self.dealer = (self.dealer + 1) % len(self.players)
+        self.current_player = self.dealer
+
+        self.game_state = 0
+        self.round += 1
+
+        return True
 
     def deal(self, hand_size):
+        def list_rotator(l, n): return l[n:] + l[:n]
+
+        rotated_player_list = list_rotator(self.players, 1)
         for i in range(hand_size):
-            for player in self.players:
-                player.hand.append(self.deck.cards.pop(0))        
+            for player in rotated_player_list:
+                player.hand.append(self.deck.cards.pop(0))
         return True
 
     def get_players(self):
@@ -49,38 +81,46 @@ class Game():
         return self.players[self.current_player]
 
     def count_hands(self):
-        ret_list = []
-        for player in self.players:
-            score = player.count_hand()
-            ret_list.append(score)
+        scores = [player.count_hand() for player in self.players]
 
-        return ret_list
-    
+        self.logger.debug("Hand scores: {0}".format([(player.name, player_score) for player, player_score in zip(self.players, scores)]))
+
+        return scores
+
     def calculate_loser(self):
         scores = self.count_hands()
         max_score = max(scores)
         losers = [i for i, j in enumerate(scores) if j == max_score]
+
         for loser in losers:
             self.players[loser].lives -= 1
-        
-        return [self.players[loser] for loser in losers]
+
+        losing_players = [self.players[loser] for loser in losers]
+        self.logger.debug("{0} lost lives.".format(str([player.name for player in losing_players])))
+
+        return losing_players
+
+    def pick_up_card(self, num_cards=1):
+        for i in range(num_cards):
+            self.get_current_player().hand.append(self.deck.cards.pop(0))
+
+        return True
 
     def end_game(self):
-       
-        print "Ending the game."
+        print "Game over. Player {0} won!".format(self.get_current_player().name)
 
         losers = self.calculate_loser()
-        print "Game over. Player {0} won!".format(self.get_current_player().name)
         for loser in losers:
             print "{0} lost. Now has {1} lives.".format(loser.name, loser.lives)
 
-        for idx, player in enumerate(self.players):
-            if player.lives == 0:
-                self.winner = 1
-                self.round = 1
-            print "{0} lives: {1}".format(player.name, player.lives)
+        self.players = [player for player in self.players if player.lives > 0]
+        if len(self.players) = 1:
+            self.winner = 1
+
+        self.logger.debug("Player Lives: {0}".format([(player.name, player.lives) for player in self.players]))
 
         self.game_state = 1
+
         return True
 
     def play_card(self, card):
@@ -94,23 +134,27 @@ class Game():
 
             self.played_cards.append(player_card)
 
+            self.db.insert("GameEvents", {"action": "PLAY", "game": self.game_num, "round": self.round, "cardname": repr(player_card), "cardvalue": player_card.get_card_score()})
+            
             if len(self.get_current_player().hand) == 0:
                 self.end_game()
             else:
                 self.current_player = (self.current_player + 1) % len(self.players)
 
-        return True
-
+            return True
+        else:
+            return False
 
 
 def main():
     HAND_SIZE = 1
-  
+    g = Game()
+
     while True:
-        g = Game()
+        g.start_new_game()
         print g.players
         while g.winner == 0:
-            g.start_game(hand_size=HAND_SIZE)
+            g.start_new_round(hand_size=HAND_SIZE)
             print "Starting round {0}".format(g.round)
             while g.game_state == 0:
                 current_player = g.get_current_player()
@@ -131,14 +175,14 @@ def main():
         print "Press 'a' to play again!"
 
         try:
-            in_str = str(raw_input('Input:'))
+            in_str = str(raw_input('Input: '))
             if in_str == "a":
-                g.start_game(hand_size=HAND_SIZE)
+                g.start_new_game(hand_size=HAND_SIZE)
             else:
                 break
         except ValueError as e:
             print e
-        
+
 
 if __name__ == '__main__':
     main()

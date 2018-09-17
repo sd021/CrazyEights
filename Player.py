@@ -12,23 +12,14 @@ class Player():
         ret_str += "Lives: " + str(self.lives) + "\n"
         return ret_str
 
-    def reset(self):
+    def reset_hand(self):
         self.hand = []
 
     def count_hand(self):
         running_count = 0
         if self.hand:
             for card in self.hand:
-                temp_count = 0
-                if card.value == 14: # Ace
-                    temp_count = 11
-                elif card.value >= 10:
-                    temp_count = 10
-                else:
-                    temp_count = card.value
-                running_count += temp_count
+                running_count += card.get_card_score()
 
         return running_count
 
-    def play_card(self, player_action, card_value):
-        pass
