@@ -8,12 +8,13 @@ class DBInterfacer():
         self.cursor = self.db.cursor()
 
     def __delattr__(self):
+        print "DB IS GETTING CLOSED "
         self.db.close()
 
     def create_table(self, tablename, columns_dict):
         column_list = ["{0} {1}".format(col_name, col_type) for col_name, col_type in zip(columns_dict.keys(), columns_dict.values())]
         column_str = ', '.join(column_list)
-        print column_str
+
         self.cursor.execute(
             '''CREATE TABLE if not exists {0}({1})'''.format(tablename, column_str))
         self.db.commit()
@@ -30,12 +31,12 @@ class DBInterfacer():
 
     def retrieve(self, tablename, columns=[], num_rows=0):
         if len(columns) == 0:
-            placeholders = "*"
+            column_str = "*"
         else:
-            placeholders = ', '.join(columns)
+            column_str = ', '.join(columns)
 
         self.cursor.execute(
-            '''SELECT {0} FROM {1}'''.format(placeholders, tablename))
+            '''SELECT {0} FROM {1}'''.format(column_str, tablename))
 
         if num_rows > 0:
             return self.cursor.fetchall()[-num_rows:]
@@ -58,7 +59,6 @@ def main():
     db = DBInterfacer()
 
     db.print_all_data("GameEvents")
-    db.print_all_data("GameAudit")
    # db.describe_table("GameAudit")
 
     #print db.retrieve("GameAudit", ["game"], 1)

@@ -5,7 +5,7 @@ from DB import DBInterfacer
 import logging
 
 class Game():
-    def __init__(self, players=2, lives=3):
+    def __init__(self, num_players=2, lives=3):
         logging.basicConfig(filename='crazy.log', level=logging.DEBUG)
         self.logger = logging.getLogger(__name__)
 
@@ -23,17 +23,21 @@ class Game():
         self.starting_lives = lives
         self.players = []
 
-        for i in range(players):
+        for i in range(num_players):
             self.players.append(Player(lives=self.starting_lives, name="Player {0}".format(i+1)))
 
         self.played_cards = []
 
-    def start_new_game(self):
+    def start_new_game(self, num_players=2):
         self.dealer = 0
         self.current_player = 0
 
         self.round = 0
         self.winner = 0
+
+        self.players = []
+        for i in range(num_players):
+            self.players.append(Player(lives=self.starting_lives, name="Player {0}".format(i + 1)))
 
         # Retrieve the last game's number and increment
         last_game_number = self.db.retrieve("GameAudit", ["game"], 1)
@@ -45,7 +49,6 @@ class Game():
         self.db.insert("GameAudit", {"game": self.game_num, "numplayers": len([player for player in self.players if (player.lives > 0)])})
 
         return True
-
 
     def start_new_round(self, hand_size):
         for player in self.players:
@@ -66,9 +69,8 @@ class Game():
         return True
 
     def deal(self, hand_size):
-        def list_rotator(l, n): return l[n:] + l[:n]
+        rotated_player_list = self.players[1:] + self.players[:1]
 
-        rotated_player_list = list_rotator(self.players, 1)
         for i in range(hand_size):
             for player in rotated_player_list:
                 player.hand.append(self.deck.cards.pop(0))
@@ -102,7 +104,11 @@ class Game():
 
     def pick_up_card(self, num_cards=1):
         for i in range(num_cards):
-            self.get_current_player().hand.append(self.deck.cards.pop(0))
+            top_card = self.deck.cards.pop(0)
+            self.get_current_player().hand.append(top_card)
+            self.db.insert("GameEvents", {"action": "PICK", "game": self.game_num, "round": self.round, "cardname": repr(
+                            top_card), "cardvalue": player_card.get_card_score()})
+
 
         return True
 
@@ -114,7 +120,7 @@ class Game():
             print "{0} lost. Now has {1} lives.".format(loser.name, loser.lives)
 
         self.players = [player for player in self.players if player.lives > 0]
-        if len(self.players) = 1:
+        if len(self.players) == 1:
             self.winner = 1
 
         self.logger.debug("Player Lives: {0}".format([(player.name, player.lives) for player in self.players]))
@@ -135,7 +141,7 @@ class Game():
             self.played_cards.append(player_card)
 
             self.db.insert("GameEvents", {"action": "PLAY", "game": self.game_num, "round": self.round, "cardname": repr(player_card), "cardvalue": player_card.get_card_score()})
-            
+
             if len(self.get_current_player().hand) == 0:
                 self.end_game()
             else:
@@ -148,10 +154,11 @@ class Game():
 
 def main():
     HAND_SIZE = 1
+    NUM_PLAYERS = 2
     g = Game()
 
     while True:
-        g.start_new_game()
+        g.start_new_game(num_players=NUM_PLAYERS)
         print g.players
         while g.winner == 0:
             g.start_new_round(hand_size=HAND_SIZE)

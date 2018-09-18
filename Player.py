@@ -8,9 +8,13 @@ class Player():
     
     def __repr__(self):
         ret_str = ""
+        ret_str += "{0}".format(self.name)
         ret_str += "Hand: " + str(self.hand) + "\n"
         ret_str += "Lives: " + str(self.lives) + "\n"
         return ret_str
+
+    def __getitem__(self):
+        return self
 
     def reset_hand(self):
         self.hand = []
