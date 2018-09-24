@@ -24,7 +24,7 @@ class DBInterfacer():
         placeholders = ', '.join('?' * len(info_dict))
 
         sql_str = 'INSERT INTO {0} ({1}) VALUES ({2})'.format(tablename, columns, placeholders)
-        print sql_str
+        
         self.cursor.execute(sql_str, tuple(info_dict.values()))
 
         self.db.commit()

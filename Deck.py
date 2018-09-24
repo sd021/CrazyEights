@@ -88,6 +88,9 @@ class Deck():
     def __repr__(self):
         return str(self.cards)
 
+    def __len__(self):
+        return len(self.cards)
+
     def shuffle(self):
         shuffle(self.cards)
 
