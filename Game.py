@@ -3,11 +3,11 @@ import logging
 from collections import OrderedDict
 
 from Player import Player
-from Deck import Deck, Card
+from Deck import Deck, Card, Suit
 from DB import DBInterfacer
 
 
-MISTAKE_VALUE=3
+MISTAKE_VALUE = 3
 HAND_SIZE = 4
 NUM_PLAYERS = 2
 
@@ -30,6 +30,7 @@ class Game():
         self.chained_cards = 0
 
         self.play_direction = 1
+        self.current_suit = 0
 
         self.starting_lives = lives
         self.players = []
@@ -67,7 +68,7 @@ class Game():
 
         self.game_state = 0
         self.round += 1
-    
+
         self.dealer = self.current_player = (self.dealer + 1) % len(self.players)
 
         self.played_cards = []
@@ -95,6 +96,7 @@ class Game():
         first_card = self.deck.cards.pop(0)
         self.played_cards.append(first_card)
         self.validate_card(first_card)
+        self.set_current_suit(first_card.suit)
 
         return True
 
@@ -166,6 +168,14 @@ class Game():
 
         return True
 
+    def set_current_suit(self, suit=None):
+        if not suit:
+            print_str =  "1. Hearts | 2. Diamonds | 3. Clubs | 4. Spades"
+            in_card = int(raw_input(print_str))
+            self.current_suit = Suit(in_card).name
+        else:
+            self.current_suit = suit
+
     def validate_card(self, card):
         last_card = self.played_cards[-1]
 
@@ -176,21 +186,25 @@ class Game():
                 elif last_card.value == 2:
                     multiplier = 2
 
-                self.chained_cards = 0
                 pickup_num = ((self.chained_cards * multiplier) + MISTAKE_VALUE)
+                
+                self.chained_cards = 0
                 print "MISTAKE! Pick up {0} cards..".format(pickup_num)
                 return (False, pickup_num)
             else:
                 self.chained_cards += 1
+                self.set_current_suit(card.suit)
                 return (True, 0)
 
         if card.value == 14:  # Ace
             if len(self.get_current_player().hand) == 1:
                 print "MISTAKE! Pick up {0} cards.!".format(MISTAKE_VALUE)
                 return (False, MISTAKE_VALUE)
-            return (True, 0)
+            else:
+                self.set_current_suit()
+                return (True, 0)
 
-        if card.value != last_card.value and card.suit != last_card.suit:
+        if card.value != last_card.value and card.suit != self.current_suit:
             print "{0} == {1}, {2} == {3}".format(card.value, last_card.value, card.suit, last_card.suit)
             print "MISTAKE! Pick up {0} cards..".format(MISTAKE_VALUE)
             return (False, MISTAKE_VALUE)
@@ -201,6 +215,7 @@ class Game():
                 self.chained_cards += 1
             if card.value == 11:
                 self.play_direction *= -1
+            self.set_current_suit(card.suit)
             return (True, 0)
 
     def play_card(self, in_card):
@@ -208,7 +223,9 @@ class Game():
         print "Played {0}".format(player_card)
 
         validation, num_cards = self.validate_card(player_card)
-        if validation == False:
+
+        # If a mistake is made, pick up cards
+        if validation is False:
             self.pick_up_card(num_cards=num_cards)
             return False
         else:
@@ -243,11 +260,8 @@ def main():
             print "Starting round {0}".format(g.round)
             while g.game_state == 0:
                 current_player = g.get_current_player()
-                print "It's {0}'s go.".format(str(current_player.get_name()))
-                print "{0} hand: ".format(current_player.get_name())
-                print current_player.hand
-                print "Last card"
-                print g.played_cards[-1:]
+                print "{0} hand: {1}".format(current_player.get_name(), current_player.hand)
+                print "Last card: {0}".format(g.played_cards[-1])
                 try:
                     print_str = " | ".join(["{0}. {1}".format(idx+1, card) for idx, card in enumerate(g.get_current_player().hand)])
                     print_str += " | {0}. {1}\n".format(str(len(g.get_current_player().hand) + 1), "Pick Up")
